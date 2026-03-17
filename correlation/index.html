@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StrideShift × Correlation — What's Next?</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f7fa;
+    --card: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --text: #111118;
+    --muted: #52525f;
+    --dim: #9999aa;
+    --accent: #5b52e8;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --blue: #2563eb;
+  }
+
+  html { scroll-behavior: smooth; background: var(--bg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+
+  .r { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .r.v { opacity: 1; transform: translateY(0); }
+  .d1 { transition-delay: 0.07s; } .d2 { transition-delay: 0.14s; }
+  .d3 { transition-delay: 0.21s; } .d4 { transition-delay: 0.28s; }
+
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 28px; }
+
+  /* Hero */
+  .hero {
+    min-height: 90vh; display: flex; align-items: center; justify-content: center;
+    padding: 60px 28px; position: relative;
+  }
+  .hero-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 40%, rgba(91,82,232,0.06) 0%, transparent 55%),
+                radial-gradient(ellipse at 70% 60%, rgba(34,197,94,0.04) 0%, transparent 45%);
+  }
+  .hero-inner { position: relative; text-align: center; max-width: 700px; }
+  .hero-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 16px; opacity: 0; animation: up .7s .15s forwards;
+  }
+  .hero-title {
+    font-size: clamp(30px, 5vw, 48px); font-weight: 800; line-height: 1.1;
+    letter-spacing: -0.03em; margin-bottom: 20px; opacity: 0; animation: up .7s .3s forwards;
+  }
+  .hero-title em { font-style: normal; color: var(--accent); }
+  .hero-sub {
+    font-size: 17px; color: var(--muted); line-height: 1.7; max-width: 560px;
+    margin: 0 auto 32px; opacity: 0; animation: up .7s .45s forwards;
+  }
+  .scroll-cue {
+    position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    opacity: 0; animation: up .7s 1s forwards;
+  }
+  .scroll-cue span { font-size: 10px; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
+  .scroll-cue i {
+    width: 14px; height: 14px; border-right: 1.5px solid var(--dim);
+    border-bottom: 1.5px solid var(--dim); transform: rotate(45deg); animation: bob 2s infinite;
+  }
+  @keyframes up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes bob { 0%,100% { transform: rotate(45deg) translateY(0); } 50% { transform: rotate(45deg) translateY(5px); } }
+
+  /* Sections */
+  .section { padding: 64px 0; }
+  .section + .section { border-top: 1px solid var(--border); }
+  .sec-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+  .sec-title { font-size: clamp(22px, 3.4vw, 32px); font-weight: 800; line-height: 1.12; letter-spacing: -0.02em; margin-bottom: 12px; }
+  .sec-desc { font-size: 15px; color: var(--muted); line-height: 1.7; max-width: 600px; margin-bottom: 32px; }
+
+  /* Phase recap cards */
+  .phase-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .phase-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; position: relative; overflow: hidden;
+  }
+  .phase-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .phase-card.p1::before { background: var(--accent); }
+  .phase-card.p2::before { background: var(--green); }
+  .phase-num { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .phase-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .phase-desc { font-size: 13.5px; color: var(--muted); line-height: 1.65; margin-bottom: 16px; }
+  .phase-stats { display: flex; gap: 20px; }
+  .phase-stat-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .phase-stat-val { font-size: 20px; font-weight: 800; line-height: 1.2; }
+  .phase-deliverables { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .phase-deliverables li { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin-bottom: 4px; list-style: none; padding-left: 16px; position: relative; }
+  .phase-deliverables li::before { content: '\2192'; position: absolute; left: 0; color: var(--dim); }
+
+  /* Method strip */
+  .method-strip {
+    display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 8px; font-size: 13px;
+  }
+  .method-icon { font-size: 20px; flex-shrink: 0; }
+  .method-label { font-weight: 600; }
+  .method-desc { color: var(--muted); flex: 1; }
+  .method-effort {
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 100px;
+    white-space: nowrap;
+  }
+
+  /* Option cards */
+  .options-grid { display: flex; flex-direction: column; gap: 10px; }
+  .option {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; cursor: pointer; transition: border-color 0.2s;
+  }
+  .option:hover { border-color: rgba(91,82,232,0.25); }
+  .option-header {
+    display: grid; grid-template-columns: 40px 1fr auto; align-items: center;
+    padding: 18px 20px; gap: 14px;
+  }
+  .option-num {
+    width: 32px; height: 32px; border-radius: 8px; display: flex;
+    align-items: center; justify-content: center; font-size: 13px; font-weight: 800;
+  }
+  .option-title { font-size: 15px; font-weight: 600; }
+  .option-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .option-chevron { width: 20px; height: 20px; color: var(--dim); transition: transform 0.3s; }
+  .option.open .option-chevron { transform: rotate(180deg); }
+  .option-body { max-height: 0; overflow: hidden; transition: max-height 0.5s cubic-bezier(0.16,1,0.3,1); }
+  .option.open .option-body { max-height: 800px; }
+  .option-inner { padding: 0 20px 20px; border-top: 1px solid var(--border); }
+  .option-what { font-size: 13.5px; color: var(--muted); line-height: 1.7; padding-top: 16px; margin-bottom: 16px; }
+  .option-what strong { color: var(--text); font-weight: 600; }
+
+  /* Effort/value bars inside options */
+  .metric-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .metric-label { font-size: 11px; font-weight: 600; width: 120px; text-align: right; flex-shrink: 0; color: var(--muted); }
+  .metric-bar-bg { flex: 1; height: 8px; background: rgba(0,0,0,0.04); border-radius: 4px; overflow: hidden; }
+  .metric-bar { height: 100%; border-radius: 4px; width: var(--w); }
+  .metric-val { font-size: 11px; font-weight: 700; width: 50px; }
+
+  /* Comparison matrix */
+  .matrix-wrap { overflow-x: auto; margin: 24px 0; }
+  .matrix {
+    width: 100%; border-collapse: collapse; font-size: 12.5px;
+  }
+  .matrix th {
+    padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim);
+    border-bottom: 2px solid var(--border); white-space: nowrap;
+  }
+  .matrix td {
+    padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle;
+  }
+  .matrix tr:hover td { background: rgba(91,82,232,0.02); }
+  .matrix .opt-name { font-weight: 600; color: var(--text); min-width: 180px; }
+  .dot-rating { display: flex; gap: 3px; }
+  .dot-rating .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .dot-on { background: var(--accent); }
+  .dot-off { background: rgba(0,0,0,0.06); }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .tag-low { background: rgba(34,197,94,0.1); color: #16a34a; }
+  .tag-med { background: rgba(245,158,11,0.1); color: #d97706; }
+  .tag-high { background: rgba(239,68,68,0.1); color: #dc2626; }
+  .tag-vhigh { background: rgba(91,82,232,0.1); color: var(--accent); }
+
+  /* Filter tabs */
+  .filters { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 6px 14px; border-radius: 100px; border: 1px solid var(--border);
+    background: var(--card); font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; color: var(--muted);
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* Sweet spot callout */
+  .callout {
+    background: linear-gradient(135deg, #1e1b4b, #312e81);
+    border-radius: 14px; padding: 28px 30px; color: white; margin: 32px 0;
+  }
+  .callout-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .callout-text { font-size: 14px; color: #c7d2fe; line-height: 1.7; }
+  .callout-text strong { color: #e0e7ff; }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .phase-grid { grid-template-columns: 1fr; }
+    .matrix { font-size: 11px; }
+    .matrix th, .matrix td { padding: 8px 6px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-inner">
+    <div class="hero-label">StrideShift x Correlation</div>
+    <h1 class="hero-title">We built the engine.<br>Now: <em>what's it worth?</em></h1>
+    <p class="hero-sub">
+      Two phases proved that cross-company data generates strategic ideas on demand.
+      This is an analysis of where to take it next &mdash; comparing effort against value at every level.
+    </p>
+  </div>
+  <div class="scroll-cue"><span>Scroll</span><i></i></div>
+</div>
+
+<div class="wrap">
+
+<!-- SECTION 1: WHAT WE'VE DONE -->
+<div class="section" id="recap">
+  <div class="sec-label r" style="color:var(--accent)">The story so far</div>
+  <h2 class="sec-title r d1">Two phases. One engine.</h2>
+  <p class="sec-desc r d2">
+    Phase 1 showed that data intersections create value nobody can see from inside a single company.
+    Phase 2 showed that the same is true for customer needs. Together, they form an idea engine that produces strategic opportunities on demand.
+  </p>
+
+  <div class="phase-grid r d3">
+    <div class="phase-card p1">
+      <div class="phase-num" style="color:var(--accent)">Phase 1 &mdash; Data Intersections</div>
+      <div class="phase-title">What could the data show?</div>
+      <div class="phase-desc">
+        Inferred each company's data schema from public information. Generated synthetic data with embedded correlations. Built interactive apps that let Correlation's team <em>experience</em> what combined data feels like.
+      </div>
+      <div class="phase-stats">
+        <div><div class="phase-stat-val" style="color:var(--accent)">~4 days</div><div class="phase-stat-label">StrideShift effort</div></div>
+        <div><div class="phase-stat-val" style="color:var(--accent)">120</div><div class="phase-stat-label">Ideas generated</div></div>
+        <div><div class="phase-stat-val" style="color:var(--accent)">6</div><div class="phase-stat-label">Interactive apps</div></div>
+      </div>
+      <ul class="phase-deliverables">
+        <li>Cross-Company Intelligence Apps (live, querying Supabase)</li>
+        <li>Breeder Report Card, Food Impact Calculator, Activity Early Warning</li>
+        <li>Social Risk Network, Claims Prevention Dashboard, Underwriting Intelligence</li>
+        <li>370,000 synthetic records across 28 tables</li>
+        <li>120 cross-company opportunity ideas</li>
+      </ul>
+    </div>
+
+    <div class="phase-card p2">
+      <div class="phase-num" style="color:var(--green)">Phase 2 &mdash; Human Insights</div>
+      <div class="phase-title">What do the companies and customers actually need?</div>
+      <div class="phase-desc">
+        Interviewed all four companies. Applied JTBD, COM-B, and Revealed Preferences frameworks.
+        Killed ideas that didn't survive contact with reality. Discovered new ones invisible from data alone.
+      </div>
+      <div class="phase-stats">
+        <div><div class="phase-stat-val" style="color:var(--green)">4</div><div class="phase-stat-label">Interviews</div></div>
+        <div><div class="phase-stat-val" style="color:var(--green)">120&rarr;28</div><div class="phase-stat-label">Ideas refined</div></div>
+        <div><div class="phase-stat-val" style="color:var(--green)">3</div><div class="phase-stat-label">Behavioural frameworks</div></div>
+      </div>
+      <ul class="phase-deliverables">
+        <li>Ecosystem Strategy explainer (interactive narrative)</li>
+        <li>28 grounded cross-company opportunities in 8 categories</li>
+        <li>Pain point analysis per company</li>
+        <li>Behavioural analyses: JTBD, COM-B, Revealed Preferences</li>
+        <li>Agent Era thesis + "Capitalising the Window" strategy</li>
+        <li>Unmet needs mapped to lifecycle x COM-B x JTBD</li>
+        <li>Core reframe: value = earlier detection, not fewer claims</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- The method strip -->
+  <div class="sec-label r" style="color:var(--dim); margin-top: 32px;">How the engine works</div>
+  <div class="method-strip r d1">
+    <div class="method-icon">1</div>
+    <div><span class="method-label">Infer</span><br><span class="method-desc">Deduce company schemas from public information. No data access needed.</span></div>
+    <div class="method-effort tag-low">Low effort</div>
+  </div>
+  <div class="method-strip r d2">
+    <div class="method-icon">2</div>
+    <div><span class="method-label">Synthesise</span><br><span class="method-desc">Generate realistic data with embedded correlations. AI does 90% of the work.</span></div>
+    <div class="method-effort tag-low">Low effort</div>
+  </div>
+  <div class="method-strip r d3">
+    <div class="method-icon">3</div>
+    <div><span class="method-label">Generate</span><br><span class="method-desc">Combine data + frameworks + interviews to produce strategic ideas on demand.</span></div>
+    <div class="method-effort tag-low">Low effort</div>
+  </div>
+  <div class="method-strip r d4">
+    <div class="method-icon">4</div>
+    <div><span class="method-label">Filter</span><br><span class="method-desc">Kill ideas that don't survive behavioural analysis or interview evidence.</span></div>
+    <div class="method-effort" style="background:rgba(245,158,11,0.1); color:#d97706;">Medium effort</div>
+  </div>
+</div>
+
+<!-- SECTION 2: OPTIONS -->
+<div class="section" id="options">
+  <div class="sec-label r" style="color:var(--accent)">Phase 3 options</div>
+  <h2 class="sec-title r d1">What StrideShift could do next.</h2>
+  <p class="sec-desc r d2">
+    Not "which idea should Correlation build" &mdash; that's their decision.
+    The question is: what's the highest-value, lowest-effort thing StrideShift can provide to support that journey?
+  </p>
+
+  <div class="filters r d3" id="filters">
+    <button class="filter-btn active" data-filter="all">All options</button>
+    <button class="filter-btn" data-filter="sweet">Sweet spot</button>
+    <button class="filter-btn" data-filter="engine">Engine plays</button>
+    <button class="filter-btn" data-filter="proof">Proof points</button>
+    <button class="filter-btn" data-filter="position">Positioning</button>
+    <button class="filter-btn" data-filter="scale">Scale plays</button>
+  </div>
+
+  <div class="options-grid r d4" id="options-list">
+
+    <!-- Option 1 -->
+    <div class="option" data-tags="sweet,engine" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(34,197,94,0.1); color:#16a34a;">1</div>
+        <div>
+          <div class="option-title">Run the engine on a new vertical</div>
+          <div class="option-subtitle">Apply the exact same playbook to another portfolio cluster or client</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> Take the methodology (infer schemas &rarr; synthesise data &rarr; generate ideas &rarr; interview &rarr; filter through behavioural frameworks) and run it on a different set of companies. Could be another Correlation cluster, could be a different client entirely.
+          <br><br>
+          <strong>Why it's low-touch:</strong> The playbook is proven. Phase 1 was ~4 days. The tooling, the frameworks, the process &mdash; all reusable. AI does the heavy lifting.
+          <br><br>
+          <strong>Why it's high-value:</strong> Each new vertical is a new engagement. The engine is the product. The output is a set of grounded, behaviourally-filtered cross-company opportunities that the client couldn't see without it.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:20%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Low</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:15%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">V.Low</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:85%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:90%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:25%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">1-2 wk</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 2 -->
+    <div class="option" data-tags="sweet,engine" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(34,197,94,0.1); color:#16a34a;">2</div>
+        <div>
+          <div class="option-title">Standing strategic intelligence retainer</div>
+          <div class="option-subtitle">The engine runs on demand as questions arise</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> Correlation retains StrideShift as an ongoing strategic intelligence capability. When a company is considering a product change, a partnership, an acquisition &mdash; StrideShift runs the cross-company analysis and surfaces what no single company can see.
+          <br><br>
+          <strong>Why it's low-touch:</strong> No project setup. No deliverable deadlines. Questions come in, analysis comes back. The infrastructure (synthetic data, frameworks, company knowledge) already exists.
+          <br><br>
+          <strong>Why it's high-value:</strong> Correlation gets a capability they can't build internally &mdash; an AI-augmented advisory function that understands all four companies and can produce grounded analysis in days, not months.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:25%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Low</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:10%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">V.Low</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:70%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:95%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:10%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Ongoing</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 3 -->
+    <div class="option" data-tags="sweet,engine" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(34,197,94,0.1); color:#16a34a;">3</div>
+        <div>
+          <div class="option-title">Board-ready investment cases on demand</div>
+          <div class="option-subtitle">Take any of the 28 ideas and produce a full business case</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> When Correlation wants to move on a specific opportunity, StrideShift produces a full investment case: projected ROI, implementation dependencies, risk analysis, behavioural design, and success metrics. Grounded in existing research, not generic consulting frameworks.
+          <br><br>
+          <strong>Why it's low-touch:</strong> The hard work (interviews, behavioural analysis, competitive landscape, data architecture) is already done. Each investment case is a focused sprint using existing knowledge.
+          <br><br>
+          <strong>Why it's high-value:</strong> De-risks decisions. The difference between "this idea sounds good" and "here's the business case with specific numbers" is the difference between a boardroom discussion and a boardroom decision.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:30%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Low</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:20%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Low</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:60%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:85%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:30%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">2-3 days</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 4 -->
+    <div class="option" data-tags="proof" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(245,158,11,0.1); color:#d97706;">4</div>
+        <div>
+          <div class="option-title">Real data validation sprint</div>
+          <div class="option-subtitle">Point the engine at actual company data to prove or kill the thesis</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> Get one data extract from each company. Run the customer overlap analysis (how many shared customers actually exist?). Test one correlation against real data (does activity drop before illness in reality?).
+          <br><br>
+          <strong>Why it matters:</strong> Everything built so far is synthetic. The overlap number is the most important unknown in the entire project. If it's 3%, the cross-company thesis is aspirational. If it's 20%+, it's already real.
+          <br><br>
+          <strong>StrideShift's role:</strong> Design the extract spec, run the analysis, produce the validation report. The companies' effort is minimal &mdash; a single data dump each.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:35%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:30%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:50%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:100%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">Critical</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:35%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">2-3 wk</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 5 -->
+    <div class="option" data-tags="position" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(37,99,235,0.1); color:var(--blue);">5</div>
+        <div>
+          <div class="option-title">Agent-era readiness assessment</div>
+          <div class="option-subtitle">Concrete specifications for each company to become agent-ready</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> Turn the "Capitalising the Window" thesis into actionable specifications. For each company: what does your API need to look like? What's your data worth as a service? Where's your moat vs where do generic agents commoditise you?
+          <br><br>
+          <strong>Why it's low-touch:</strong> The strategic analysis is done. This is a focused translation from strategy to specification. StrideShift writes the docs, each company reviews.
+          <br><br>
+          <strong>Why it's high-value:</strong> The 12&ndash;24 month window is real. Companies that are agent-ready when the wave hits capture the market. Those that aren't get bypassed.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:35%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:20%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Low</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:55%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:90%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:40%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">3-4 wk</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 6 -->
+    <div class="option" data-tags="sweet,position" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(34,197,94,0.1); color:#16a34a;">6</div>
+        <div>
+          <div class="option-title">Acquisition intelligence tool</div>
+          <div class="option-subtitle">Evaluate potential portfolio additions through data complementarity</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> When Correlation evaluates a fifth company for the portfolio, StrideShift runs the engine: infer their schema, synthesise combined data, generate the new cross-company opportunities this addition would unlock. A data-driven answer to "is this company worth acquiring?"
+          <br><br>
+          <strong>Why it's low-touch:</strong> Same playbook as Phase 1, but targeted at a single company against the existing four. Takes days, not weeks.
+          <br><br>
+          <strong>Why it's high-value:</strong> Acquisition decisions are the highest-stakes decisions Correlation makes. This de-risks them with evidence, not intuition.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:25%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Low</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:10%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">V.Low</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:75%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:95%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:25%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">3-5 days</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 7 -->
+    <div class="option" data-tags="engine,position" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(37,99,235,0.1); color:var(--blue);">7</div>
+        <div>
+          <div class="option-title">Attract new companies into the ecosystem</div>
+          <div class="option-subtitle">Use existing deliverables as a pitch to potential additions</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> The ecosystem strategy explainer, the interactive apps, the behavioural analysis &mdash; these are already a pitch deck. StrideShift helps Correlation use them to attract company #5, #6, #7 by showing: "here's what your data is worth when combined with these four."
+          <br><br>
+          <strong>Why it's low-touch:</strong> The materials exist. The engine can generate a targeted analysis showing what any specific new company would add. One run of the engine per prospect.
+          <br><br>
+          <strong>Why it's high-value:</strong> Network effects. Each new company makes the ecosystem more valuable for every existing company. This is how you go from a portfolio to a platform.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:25%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Low</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:30%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:90%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:95%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:20%; background:var(--green);"></div></div><div class="metric-val" style="color:var(--green)">Per prospect</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 8 -->
+    <div class="option" data-tags="proof" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(245,158,11,0.1); color:#d97706;">8</div>
+        <div>
+          <div class="option-title">Externally sellable data study</div>
+          <div class="option-subtitle">Produce a food-brand or breed-health report that generates revenue</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> Use the engine + real data to produce a publishable study. The food-brand GI outcome study is the strongest candidate: Joii already collects food data in consultations, Waggel has claims. Cross-reference them and you have a study that pet food companies would pay for.
+          <br><br>
+          <strong>Why it's medium-touch:</strong> Requires real data access (Joii consultation forms + Waggel claims). The analysis is straightforward once data is available.
+          <br><br>
+          <strong>Why it's high-value:</strong> This isn't advisory revenue &mdash; it's a data product. The ecosystem produces something the external market values. Self-funding proof that cross-company data has commercial worth.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:45%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:35%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:85%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:75%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:50%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">4-6 wk</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 9 -->
+    <div class="option" data-tags="scale" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(239,68,68,0.1); color:var(--red);">9</div>
+        <div>
+          <div class="option-title">Ecosystem health dashboard</div>
+          <div class="option-subtitle">Continuous monitoring of cross-company signals and KPIs</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> A live dashboard that monitors cross-company metrics: customer overlap trends, claim severity trajectories, activity-health correlations, retention across the ecosystem. Gives Correlation a permanent view of how the portfolio works as a system.
+          <br><br>
+          <strong>Why it's higher-touch:</strong> Requires ongoing data feeds and the shared identity layer to be at least partially solved. This is a build, not just analysis.
+          <br><br>
+          <strong>Why it's high-value:</strong> Transforms Correlation from a holding company that checks quarterly reports to one that sees the ecosystem in real time. But depends on preconditions that don't yet exist.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:70%; background:var(--red);"></div></div><div class="metric-val" style="color:var(--red)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:60%; background:var(--red);"></div></div><div class="metric-val" style="color:var(--red)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:60%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:85%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">V.High</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:65%; background:var(--red);"></div></div><div class="metric-val" style="color:var(--red)">2-3 mo</div></div>
+      </div></div>
+    </div>
+
+    <!-- Option 10 -->
+    <div class="option" data-tags="scale" onclick="this.classList.toggle('open')">
+      <div class="option-header">
+        <div class="option-num" style="background:rgba(239,68,68,0.1); color:var(--red);">10</div>
+        <div>
+          <div class="option-title">Prototype one idea end-to-end</div>
+          <div class="option-subtitle">Pick the highest-value opportunity and build a working pilot</div>
+        </div>
+        <svg class="option-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="option-body"><div class="option-inner">
+        <div class="option-what">
+          <strong>What it is:</strong> Take the claim severity compressor, or the pre-clinical activity signal, or the food brand study &mdash; and build a working prototype with real data for a small cohort. Not a product launch. A controlled test that produces a measurable result.
+          <br><br>
+          <strong>Why it's higher-touch:</strong> Requires real data, real integration between at least two companies, and a defined test population. This is implementation, not analysis.
+          <br><br>
+          <strong>Why it's the endgame:</strong> This is what everything has been building toward. But it's phase 4, not phase 3 &mdash; unless Correlation is ready to commit resources at the company level.
+        </div>
+        <div class="metric-row"><div class="metric-label">Our effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:75%; background:var(--red);"></div></div><div class="metric-val" style="color:var(--red)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Client effort</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:70%; background:var(--red);"></div></div><div class="metric-val" style="color:var(--red)">High</div></div>
+        <div class="metric-row"><div class="metric-label">Revenue potential</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:50%; background:var(--amber);"></div></div><div class="metric-val" style="color:var(--amber)">Med</div></div>
+        <div class="metric-row"><div class="metric-label">Strategic value</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:100%; background:var(--accent);"></div></div><div class="metric-val" style="color:var(--accent)">Critical</div></div>
+        <div class="metric-row"><div class="metric-label">Time to output</div><div class="metric-bar-bg"><div class="metric-bar" style="--w:70%; background:var(--red);"></div></div><div class="metric-val" style="color:var(--red)">6-8 wk</div></div>
+      </div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- COMPARISON MATRIX -->
+<div class="section" id="compare">
+  <div class="sec-label r" style="color:var(--accent)">Side by side</div>
+  <h2 class="sec-title r d1">The full comparison.</h2>
+  <p class="sec-desc r d2">Sorted by the ratio of value to effort. The sweet spot is top of the table: high value, low effort.</p>
+
+  <div class="matrix-wrap r d3">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Our effort</th>
+          <th>Client effort</th>
+          <th>Time</th>
+          <th>Revenue for us</th>
+          <th>Strategic value for them</th>
+          <th>Scales?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="opt-name">1. New vertical</td>
+          <td><span class="tag tag-low">Low</span></td>
+          <td><span class="tag tag-low">V.Low</span></td>
+          <td>1-2 wk</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-vhigh">Repeatable</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">6. Acquisition intel</td>
+          <td><span class="tag tag-low">Low</span></td>
+          <td><span class="tag tag-low">V.Low</span></td>
+          <td>3-5 days</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-vhigh">Per target</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">3. Investment cases</td>
+          <td><span class="tag tag-low">Low</span></td>
+          <td><span class="tag tag-low">Low</span></td>
+          <td>2-3 days</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-vhigh">Per idea</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">2. Standing retainer</td>
+          <td><span class="tag tag-low">Low</span></td>
+          <td><span class="tag tag-low">V.Low</span></td>
+          <td>Ongoing</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-vhigh">Compounds</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">7. Attract companies</td>
+          <td><span class="tag tag-low">Low</span></td>
+          <td><span class="tag tag-med">Med</span></td>
+          <td>Per prospect</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-vhigh">Network effects</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">5. Agent readiness</td>
+          <td><span class="tag tag-med">Med</span></td>
+          <td><span class="tag tag-low">Low</span></td>
+          <td>3-4 wk</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-med">Time-sensitive</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">4. Data validation</td>
+          <td><span class="tag tag-med">Med</span></td>
+          <td><span class="tag tag-med">Med</span></td>
+          <td>2-3 wk</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-med">One-shot</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">8. Sellable study</td>
+          <td><span class="tag tag-med">Med</span></td>
+          <td><span class="tag tag-med">Med</span></td>
+          <td>4-6 wk</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div></div></td>
+          <td><span class="tag tag-med">Repeatable</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">9. Ecosystem dashboard</td>
+          <td><span class="tag tag-high">High</span></td>
+          <td><span class="tag tag-high">High</span></td>
+          <td>2-3 mo</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-high">Infra required</span></td>
+        </tr>
+        <tr>
+          <td class="opt-name">10. End-to-end pilot</td>
+          <td><span class="tag tag-high">High</span></td>
+          <td><span class="tag tag-high">High</span></td>
+          <td>6-8 wk</td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-off"></div><div class="dot dot-off"></div></div></td>
+          <td><div class="dot-rating"><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div><div class="dot dot-on"></div></div></td>
+          <td><span class="tag tag-high">One-shot</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Sweet spot callout -->
+  <div class="callout r d4">
+    <div class="callout-title">The sweet spot</div>
+    <div class="callout-text">
+      Options 1&ndash;3 and 6 share a pattern: <strong>the engine is the product</strong>. StrideShift doesn't build things for Correlation's companies &mdash; StrideShift helps Correlation <em>see</em>. New verticals, acquisition targets, investment decisions, ongoing strategic questions. All use the same methodology, the same AI-augmented process, the same behavioural frameworks. Each engagement takes days, not months. Each produces insight the client can't get elsewhere.
+      <br><br>
+      Options 4&ndash;5 and 7&ndash;8 are valuable but require coordination with the portfolio companies.
+      Options 9&ndash;10 are phase 4 &mdash; they require infrastructure that doesn't exist yet.
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+// Scroll reveal
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('v'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.r').forEach(el => obs.observe(el));
+
+// Filters
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+    document.querySelectorAll('.option').forEach(opt => {
+      if (filter === 'all') {
+        opt.style.display = '';
+      } else {
+        const tags = opt.dataset.tags || '';
+        opt.style.display = tags.includes(filter) ? '' : 'none';
+      }
+    });
+  });
+});
+</script>
+
+</body>
+</html>
